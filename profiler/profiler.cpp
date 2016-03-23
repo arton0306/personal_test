@@ -4,6 +4,8 @@
 #include <vector>
 #include <cassert>
 #include <string>
+#include <map>
+#include <set>
 
 using namespace std;
 
@@ -66,6 +68,7 @@ private:
 
 class Prof {
 public:
+    // the lifetime of title must be as long as ProfMgr
     Prof(char const *title);
     ~Prof();
 
@@ -174,11 +177,31 @@ void ProfMgr::printOneRecord(char const *title, Timespec const &s, Timespec cons
 
 void ProfMgr::report(bool mergeTitle)
 {
-    if (_mode == SINGLE_THREAD) {
-        for (int i = 0; i < _profs[0].size(); ++i) {
-            InnerProf &iprof = _profs[0][i];
-            printOneRecord(iprof._title, iprof._start, iprof._end);
+    if (!mergeTitle) {
+        if (_mode == SINGLE_THREAD) {
+            for (int i = 0; i < _profs[0].size(); ++i) {
+                InnerProf &iprof = _profs[0][i];
+                printOneRecord(iprof._title, iprof._start, iprof._end);
+            }
         }
+    } else {
+        // merge
+        vector< map<string, long long> > tbl(SLOT, map<string, long long>());
+        set<string> titles;
+        for (int i = 0; i < SLOT; ++i) {
+            for (int j = 0; j < _profs[i].size(); ++j) {
+                InnerProf &iprof = _profs[i][j];
+                if (titles.count(iprof._title) == 0) {
+                    titles.insert(iprof._title);
+                    tbl[i][iprof._title] = getNs(iprof._end) - getNs(iprof._start);
+                } else {
+                    tbl[i][iprof._title] += getNs(iprof._end) - getNs(iprof._start);
+                }
+            }
+        }
+
+        // calc
+
     }
 }
 
