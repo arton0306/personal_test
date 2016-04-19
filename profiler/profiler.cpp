@@ -1,9 +1,11 @@
+#include "profiler.h"
+
+#include <inttypes.h>
+#include <stdint.h>
 #include <time.h>
+
 #include <cstdio>
 #include <iostream>
-#include <vector>
-#include <cassert>
-#include <string>
 #include <map>
 #include <set>
 
@@ -11,147 +13,8 @@ using namespace std;
 
 // TODO: use namespace
 
-typedef struct timespec Timespec;
-class ProfMgr;
-class Prof;
-
-void print_time(long long ns, char const *title)
-{
-    int sec = ns / 1000000000LL;
-
-    int ss = sec % 60;
-    int mm = sec / 60 % 60;
-    int hh = sec / 60 / 60;
-    int ms = ns / 1000000 % 1000;
-
-    printf("%s - %02d:%02d:%02d.%03d \n", title, hh, mm, ss, ms);
-}
-
-long long getNs(Timespec const &s)
-{
-    return s.tv_sec * 1000000000LL + s.tv_nsec;
-}
-
-// ===================================
-// Declaration
-// ===================================
-
-class ProfMgr {
-private:
-    struct InnerProf {
-        char const *_title;
-        Timespec _start;
-        Timespec _end;
-    };
-
-public:
-    enum Mode
-    {
-        SINGLE_THREAD,
-        MULTI_THREAD,
-    };
-
-    ProfMgr(Mode mode, int (*thrdIdCb)(void) = NULL);
-    void addProf(char const *title, Timespec s, Timespec e);
-    void report(bool mergeTitle);
-
-private:
-    string ns2str(long long ns);
-    void printOneRecord(char const *title, Timespec const &s, Timespec const &e);
-
-    Mode _mode;
-    int (*_thrdIdCb)(void);
-    Timespec _mgrInit;
-
-    vector<vector<InnerProf> > _profs;
-};
-
-class Prof {
-public:
-    // the lifetime of title must be as long as ProfMgr
-    Prof(char const *title);
-    ~Prof();
-
-    char const *getTitle();
-    Timespec getStart();
-    Timespec getEnd();
-    long long getStartNs();
-    long long getEndNs();
-    long long getPeriodNs();
-
-    // cannot reset
-    static void setProfMgr(ProfMgr *mgr);
-
-private:
-    char const *_title;
-    Timespec _start;
-    Timespec _end;
-
-    static ProfMgr *_sProfMgr;
-};
-
-// ===================================
-// Definition
-// ===================================
-
-ProfMgr *Prof::_sProfMgr = NULL;
-
-Prof::Prof(char const *title)
-{
-    assert(_sProfMgr);
-    _title = title;
-    clock_gettime(CLOCK_REALTIME, &_start);
-}
-
-Prof::~Prof()
-{
-    clock_gettime(CLOCK_REALTIME, &_end);
-    assert(_sProfMgr);
-    _sProfMgr->addProf(_title, _start, _end);
-}
-
-char const *Prof::getTitle()     { return _title; }
-Timespec Prof::getStart()        { return _start; }
-Timespec Prof::getEnd()          { return _end; }
-long long Prof::getStartNs()     { return getNs(_start); }
-long long Prof::getEndNs()       { return getNs(_end); }
-long long Prof::getPeriodNs()    { return getEndNs() - getStartNs(); }
-/* static */ void Prof::setProfMgr(ProfMgr *mgr) { assert(!_sProfMgr); _sProfMgr = mgr; }
-
-static const int SLOT = 10000;
-ProfMgr::ProfMgr(Mode mode, int (*thrdIdCb)(void)) 
-    : _mode(mode)
-    , _thrdIdCb(thrdIdCb)
-    , _profs(SLOT, vector<InnerProf>())
-{
-    clock_gettime(CLOCK_REALTIME, &_mgrInit);
-    Prof::setProfMgr(this);
-    for (int i = 0; i < SLOT; ++i) {
-        _profs[i].reserve(100);
-    }
-}
-
-void ProfMgr::addProf(char const *title, Timespec s, Timespec e)
-{
-    int i = -1;
-    if (_mode == SINGLE_THREAD) {
-        i = 0;
-    } else if (_thrdIdCb) {
-        i = _thrdIdCb();
-    } else {
-        Timespec tmp;
-        clock_gettime(CLOCK_REALTIME, &tmp);
-        i = tmp.tv_nsec % 9887; // pseudo random
-    }
-    assert(-1 < i && i < SLOT);
-    InnerProf p = {title, s, e};
-    if (0) { // debug
-        printf("(debug) %s %lld %lld \n", title, getNs(s), getNs(e));
-    }
-    _profs[i].push_back(p);
-}
-
-string ProfMgr::ns2str(long long ns)
+namespace {
+string Ns2Str(int64_t ns)
 {
     int sec = static_cast<int>(ns / 1000000000LL);
     int ss = sec % 60;
@@ -165,72 +28,132 @@ string ProfMgr::ns2str(long long ns)
     return buf;
 }
 
-void ProfMgr::printOneRecord(char const *title, Timespec const &s, Timespec const &e)
+void PrintTime(int64_t ns, char const *title)
 {
-    long long beginNs = getNs(s) - getNs(_mgrInit);
-    long long periodNs = getNs(e) - getNs(s);
-    printf("%25s ] start at: %s, period: %s \n",
-            title,
-            ns2str(beginNs).c_str(),
-            ns2str(periodNs).c_str());
+    int sec = ns / 1000000000LL;
+
+    int ss = sec % 60;
+    int mm = sec / 60 % 60;
+    int hh = sec / 60 / 60;
+    int ms = ns / 1000000 % 1000;
+
+    printf("%s - %02d:%02d:%02d.%03d \n", title, hh, mm, ss, ms);
+}
+} // namespace
+
+ProfMgr *Prof::sProfMgr_ = NULL;
+
+Prof::Prof(int tag)
+{
+    tag_ = tag;
+    title_ = NULL;
+    clock_gettime(CLOCK_REALTIME, &start_);
+    assert(sProfMgr_);
+    assert(tag < sProfMgr_->get_tag_count());
 }
 
-void ProfMgr::report(bool mergeTitle)
+Prof::Prof(char const *title)
 {
-    if (!mergeTitle) {
-        if (_mode == SINGLE_THREAD) {
-            for (int i = 0; i < _profs[0].size(); ++i) {
-                InnerProf &iprof = _profs[0][i];
-                printOneRecord(iprof._title, iprof._start, iprof._end);
-            }
-        }
+    tag_ = 0;
+    title_ = title;
+    clock_gettime(CLOCK_REALTIME, &start_);
+}
+
+Prof::~Prof()
+{
+    clock_gettime(CLOCK_REALTIME, &end_);
+    if (sProfMgr_) {
+        sProfMgr_->AddProf(this);
+    }
+
+    if (sProfMgr_ && title_) {
+        int64_t begin_ns = get_ns(start_) - get_ns(sProfMgr_->get_mgr_init_time());
+        printf("%25s ] begin at: %s  period: %s \n",
+                title_,
+                Ns2Str(begin_ns).c_str(),
+                Ns2Str(get_period_ns()).c_str());
     } else {
-        // merge
-        vector< map<string, long long> > tbl(SLOT, map<string, long long>());
-        set<string> titles;
-        for (int i = 0; i < SLOT; ++i) {
-            for (int j = 0; j < _profs[i].size(); ++j) {
-                InnerProf &iprof = _profs[i][j];
-                if (titles.count(iprof._title) == 0) {
-                    titles.insert(iprof._title);
-                    tbl[i][iprof._title] = getNs(iprof._end) - getNs(iprof._start);
-                } else {
-                    tbl[i][iprof._title] += getNs(iprof._end) - getNs(iprof._start);
-                }
+        printf("tag:%02d ] period: %s \n",
+                tag_,
+                Ns2Str(get_period_ns()).c_str());
+    }
+}
+
+ProfMgr::ProfMgr(Mode mode, int tag_count, int (*thrd_id_cb)(void))
+    : mode_(mode)
+    , tag_count_(tag_count)
+    , thread_id_callback_(thrd_id_cb)
+    , tag_periods_(tag_count, vector<int64_t>(kPrime, 0))
+    , tag_names_(tag_count)
+{
+    if (mode == SINGLE_THREAD) assert(!thrd_id_cb);
+    assert(tag_count >= 1);
+    clock_gettime(CLOCK_REALTIME, &mgr_init_time_);
+    Prof::set_prof_mgr(this);
+}
+
+void ProfMgr::AddProf(Prof const *prof)
+{
+    int slot = -1;
+    if (mode_ == SINGLE_THREAD) {
+        slot = 0;
+    } else if (thread_id_callback_) {
+        slot = thread_id_callback_();
+    } else {
+        Timespec tmp;
+        clock_gettime(CLOCK_REALTIME, &tmp);
+        slot = tmp.tv_nsec % kPrime; // pseudo random
+    }
+    assert(-1 < slot && slot < kPrime);
+    if (0) { // debug
+        printf("(debug) %s %" PRId64 " %" PRId64 " \n",
+                prof->get_title(),
+                prof->get_start_ns(),
+                prof->get_end_ns());
+    }
+    tag_periods_[prof->get_tag()][slot] += prof->get_period_ns();
+}
+
+void ProfMgr::PrintTagTotalNs(int tag, int64_t total_ns) const
+{
+    if (tag_names_[tag] != "") {
+        printf("%10s  total: %s\n",
+                tag_names_[tag].c_str(),
+                Ns2Str(total_ns).c_str());
+    } else {
+        printf("tag-%02d  total: %s\n",
+                tag,
+                Ns2Str(total_ns).c_str());
+    }
+}
+
+void ProfMgr::Report() const
+{
+    cout << "========== profile report ==========" << endl;
+
+    for (int i = 0; i < tag_count_; ++i) {
+        int64_t total_ns = 0;
+        for (int j = 0; j < kPrime; ++j) {
+            total_ns += tag_periods_[i][j];
+        }
+        PrintTagTotalNs(i, total_ns);
+    }
+
+    /*
+    // merge
+    vector< map<string, int64_t> > tbl(kPrime, map<string, int64_t>());
+    set<string> titles;
+    for (int i = 0; i < kPrime; ++i) {
+        for (int j = 0; j < tag_periods_[i].size(); ++j) {
+            InnerProf &iprof = tag_periods_[i][j];
+            if (titles.count(iprof.title) == 0) {
+                titles.insert(iprof.title);
+                tbl[i][iprof.title] = get_ns(iprof.end) - get_ns(iprof.start);
+            } else {
+                tbl[i][iprof.title] += get_ns(iprof.end) - get_ns(iprof.start);
             }
         }
-
-        // calc
-
     }
-}
-
-// ===================================
-// Main
-// ===================================
-
-void foo() {
-    long long sum = 0;
-    int j = 0;
-    for (int i = 0; i < 100000000; ++i) {
-        if (++j % 37 == 0) continue;
-        sum += i;
-    }
-    printf("sum = %lld \n", sum);
-}
-
-int main() {
-    ProfMgr mgr(ProfMgr::SINGLE_THREAD);
-    {
-        Prof prof("foo");
-        foo();
-    }
-    {
-        Prof prof("foo");
-        foo();
-    }
-    mgr.report(false);
-
-    return 0;
+    */
 }
 
