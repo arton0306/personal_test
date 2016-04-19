@@ -11,9 +11,8 @@
 
 using namespace std;
 
-// TODO: use namespace
-
 namespace {
+
 string Ns2Str(int64_t ns)
 {
     int sec = static_cast<int>(ns / 1000000000LL);
@@ -28,18 +27,9 @@ string Ns2Str(int64_t ns)
     return buf;
 }
 
-void PrintTime(int64_t ns, char const *title)
-{
-    int sec = ns / 1000000000LL;
-
-    int ss = sec % 60;
-    int mm = sec / 60 % 60;
-    int hh = sec / 60 / 60;
-    int ms = ns / 1000000 % 1000;
-
-    printf("%s - %02d:%02d:%02d.%03d \n", title, hh, mm, ss, ms);
-}
 } // namespace
+
+namespace art_profiler {
 
 ProfMgr *Prof::sProfMgr_ = NULL;
 
@@ -157,3 +147,4 @@ void ProfMgr::Report() const
     */
 }
 
+} // namespace art_profiler

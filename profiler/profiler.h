@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+namespace art_profiler {
+
 typedef struct timespec Timespec;
 void PrintTime(int64_t ns, char const *title);
 inline int64_t get_ns(Timespec const &s) { return s.tv_sec * 1000000000LL + s.tv_nsec; }
@@ -116,5 +118,7 @@ private:
 
     static ProfMgr *sProfMgr_;
 };
+
+} // namespace art_profiler
 
 #endif  // ARTONINC_PROFILE_H_

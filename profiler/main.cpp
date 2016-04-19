@@ -16,6 +16,7 @@ void foo() {
 }
 
 int main() {
+    using namespace art_profiler;
     ProfMgr mgr(ProfMgr::SINGLE_THREAD, 1);
     mgr.add_tag_name(0, "TEST");
     {
