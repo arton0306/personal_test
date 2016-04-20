@@ -92,9 +92,7 @@ void ProfMgr::AddProf(Prof const *prof)
     } else if (thread_id_callback_) {
         slot = thread_id_callback_();
     } else {
-        Timespec tmp;
-        clock_gettime(CLOCK_REALTIME, &tmp);
-        slot = tmp.tv_nsec % kPrime; // pseudo random
+        slot = prof->get_end_ns() % kPrime; // pseudo random
     }
     assert(-1 < slot && slot < kPrime);
     if (0) { // debug
