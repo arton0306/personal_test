@@ -54,13 +54,17 @@ void MultiThreadTest() {
     mgr.add_tag_name(1, "AA");
     mgr.add_tag_name(2, "AAA");
 
-    std::thread t0 {f0};
-    std::thread t1 {f1};
+    std::thread t00 {f0};
     std::thread t01 {f0};
+    std::thread t02 {f0};
+    std::thread t10 {f1};
+    std::thread t11 {f1};
 
-    t0.join();
-    t1.join();
+    t00.join();
     t01.join();
+    t02.join();
+    t10.join();
+    t11.join();
 
     mgr.Report();
 }

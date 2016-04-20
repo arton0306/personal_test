@@ -53,6 +53,7 @@ public:
     // don't set thrdIdCb, it is for future use
     ProfMgr(Mode mode, int tag_count = 1, int (*thrdIdCb)(void) = NULL);
     void Report() const;
+    Mode get_mode()              const { return mode_; }
     int get_tag_count()          const { return tag_count_; }
     Timespec get_mgr_init_time() const { return mgr_init_time_; }
     void add_tag_name(int tag, std::string name) { assert(tag < tag_count_); tag_names_[tag] = name; }

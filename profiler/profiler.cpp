@@ -56,6 +56,8 @@ Prof::~Prof()
         sProfMgr_->AddProf(this);
     }
 
+    if (sProfMgr_ && sProfMgr_->get_mode() == ProfMgr::MULTI_THREAD) return;
+
     if (sProfMgr_ && title_) {
         int64_t begin_ns = get_ns(start_) - get_ns(sProfMgr_->get_mgr_init_time());
         printf("%25s ] begin at: %s  period: %s \n",
