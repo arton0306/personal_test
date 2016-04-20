@@ -1,5 +1,6 @@
 #include "profiler.h"
 
+#define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 #include <stdint.h>
 #include <time.h>
