@@ -49,8 +49,8 @@ void SingleThreadTest() {
     mgr.Report();
 }
 
-void MultiThreadTest() {
     ProfMgr mgr(ProfMgr::MULTI_THREAD, 3);
+void MultiThreadTest() {
     mgr.add_tag_name(0, "A");
     mgr.add_tag_name(1, "AA");
     mgr.add_tag_name(2, "AAA");
